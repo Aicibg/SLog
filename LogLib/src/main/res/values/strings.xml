@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_log">Log</string>
+    <string name="text_open">查看</string>
+    <string name="text_share">分享</string>
+    <string name="text_clear">清空</string>
+    <string name="text_confirm">确认</string>
+    <string name="text_copy_text">点击复制</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="buttonShare" type="id"/>
+    <item name="buttonOpen" type="id"/>
+    <item name="buttonClear" type="id"/>
+</resources>
