@@ -75,7 +75,7 @@ class SLogDialog {
     }
 
     fun hide() {
-        dialog?.hide()
+        dialog?.dismiss()
     }
 
     fun isShowing(): Boolean {
@@ -109,7 +109,7 @@ class SLogDialog {
                 SLog.clearLog()
             }
         }
-        dialog?.hide()
+       hide()
     }
 
 }

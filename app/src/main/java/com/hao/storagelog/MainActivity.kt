@@ -3,7 +3,6 @@ package com.hao.storagelog
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
@@ -16,6 +15,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+//        SLog.attachLifecycle(this)
         SLog.attachActivity(this)
 
         findViewById<Button>(R.id.buttonView).setOnClickListener {
@@ -43,5 +43,11 @@ class MainActivity : AppCompatActivity() {
                 6
             )
         }
+    }
+
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SLog.removeLogView()
     }
 }

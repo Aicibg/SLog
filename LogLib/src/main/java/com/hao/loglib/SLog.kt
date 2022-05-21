@@ -11,6 +11,7 @@ import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.util.SparseArray
@@ -21,10 +22,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -32,6 +29,9 @@ import java.nio.charset.Charset
 import java.text.SimpleDateFormat
 import kotlin.math.abs
 import android.util.DisplayMetrics
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.*
 
 
 object SLog {
@@ -40,6 +40,7 @@ object SLog {
     @SuppressLint("SimpleDateFormat")
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     var logSaveLocal = false
+    const val REQUEST_CODE = 10010
 
 //        val Instance: SLog by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
 //            SLog()
@@ -105,8 +106,8 @@ object SLog {
         return this
     }
 
-    fun attachActivity(activity: AppCompatActivity) {
-        activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
+    fun attachLifecycle(lifecycleOwner: LifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onCreate(owner: LifecycleOwner) {
                 super.onCreate(owner)
             }
@@ -118,8 +119,27 @@ object SLog {
             }
         })
 
+        if (lifecycleOwner is AppCompatActivity) {
+            mWindowManager = mContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            requestWindowPermission(lifecycleOwner)
+        }
+    }
+
+    /**
+     * attachActivity  addAttachLogView  removeLogView配合使用
+     */
+    fun attachActivity(activity: Activity) {
         mWindowManager = mContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         requestWindowPermission(activity)
+    }
+
+    fun addAttachLogView(activity: Activity) {
+        addLogView(activity)
+    }
+
+    fun removeLogView() {
+        mWindowManager?.removeView(logViewArray[0])
+        logViewArray.remove(0)
     }
 
     fun saveLogFile(isSave: Boolean) {
@@ -271,7 +291,7 @@ object SLog {
     }
 
 
-    private fun requestWindowPermission(activity: AppCompatActivity) {
+    private fun requestWindowPermission(activity: Activity) {
         //android 6.0或者之后的版本需要发一个intent让用户授权
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!Settings.canDrawOverlays(mContext)) {
@@ -279,17 +299,46 @@ object SLog {
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:${activity.packageName}")
                 )
-//                startActivityForResult(intent,100)
-                activity.registerForActivityResult(
-                    ActivityResultContracts.StartActivityForResult()
-                ) {
-                    val data = it.data
-                    val resultCode = it.resultCode
-                    println("resultCode===$resultCode")
-                    if (resultCode == 0) {
-                        addLogView(activity)
+                when (activity) {
+                    is AppCompatActivity -> {
+                        activity.registerForActivityResult(
+                            ActivityResultContracts.StartActivityForResult()
+                        ) {
+                            val data = it.data
+                            val resultCode = it.resultCode
+                            println("resultCode===$resultCode")
+                            if (resultCode == 0) {
+                                addLogView(activity)
+                            }
+                        }.launch(intent)
                     }
-                }.launch(intent)
+                    is FragmentActivity -> {
+                        val manager = activity.supportFragmentManager
+                        var fragment =
+                            manager.findFragmentByTag(ActivityResultFragment.NAME) as? ActivityResultFragment
+                        if (fragment == null) {
+                            fragment = ActivityResultFragment()
+                            manager.beginTransaction().add(fragment, ActivityResultFragment.NAME)
+                                .commitNowAllowingStateLoss()
+                        }
+                        fragment.callback = { requestCode, resultCode, data ->
+                            val success =
+                                resultCode == Activity.RESULT_OK && requestCode == ActivityResultFragment.REQUEST_CODE
+                            if (success) {
+                                addLogView(activity)
+                            }
+                        }
+                        try {
+                            fragment.startActivityForResult(intent, ActivityResultFragment.REQUEST_CODE)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            fragment.callback = null
+                        }
+                    }
+                    else -> {
+                        activity.startActivityForResult(intent, REQUEST_CODE)
+                    }
+                }
             } else {
                 addLogView(activity)
             }
@@ -299,7 +348,7 @@ object SLog {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun addLogView(activity: AppCompatActivity) {
+    private fun addLogView(activity: Activity) {
         //创建窗口布局参数
         val mParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -357,7 +406,7 @@ object SLog {
             false
         }
         logView.setOnClickListener {
-            if (activityList.isEmpty()){
+            if (activityList.isEmpty()) {
                 return@setOnClickListener
             }
             if (SLogDialog.Instance.isShowing()) {
@@ -369,5 +418,23 @@ object SLog {
         mWindowManager?.addView(logView, mParams)
         val index = logViewArray.size()
         logViewArray.put(index, logView)
+    }
+}
+
+typealias ActivityResultCallback = (requestCode: Int, resultCode: Int, data: Intent?) -> Unit
+
+class ActivityResultFragment : Fragment() {
+
+    companion object {
+        const val NAME = "ActivityResultFragment_op"
+        const val REQUEST_CODE = 18745
+    }
+
+    var callback: ActivityResultCallback? = null
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        callback?.invoke(requestCode, resultCode, data)
+        callback = null
     }
 }

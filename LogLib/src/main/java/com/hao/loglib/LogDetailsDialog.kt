@@ -78,7 +78,7 @@ class LogDetailsDialog {
     }
 
     fun hide() {
-        dialog?.hide()
+        dialog?.dismiss()
     }
 
     fun isShowing(): Boolean {
