@@ -9,16 +9,15 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.net.Uri
+import android.opengl.Visibility
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.util.SparseArray
 import android.view.*
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -31,7 +30,8 @@ import kotlin.math.abs
 import android.util.DisplayMetrics
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import kotlinx.coroutines.*
+import java.lang.ref.WeakReference
+import java.util.concurrent.ScheduledThreadPoolExecutor
 
 
 object SLog {
@@ -50,6 +50,8 @@ object SLog {
     private var mWindowManager: WindowManager? = null
     private val logViewArray = SparseArray<TextView>()
     private val activityList = mutableListOf<Activity>()
+    private val threadPool = ScheduledThreadPoolExecutor(2)
+    private var attachActivity: WeakReference<Activity>? = null
 
     fun initLog(context: Application): SLog {
         mContext = context
@@ -71,11 +73,17 @@ object SLog {
                     activityList.remove(activity)
                 }
                 activityList.add(activity)
+                if (activityList.size == 1 && logViewArray.size() == 1) {
+                    logViewArray[0].visibility = View.VISIBLE
+                }
             }
 
             override fun onActivityPaused(activity: Activity) {
                 if (activityList.contains(activity)) {
                     activityList.remove(activity)
+                }
+                if (activityList.isEmpty()) {
+                    logViewArray[0].visibility = View.GONE
                 }
             }
 
@@ -88,7 +96,9 @@ object SLog {
             }
 
             override fun onActivityDestroyed(activity: Activity) {
-
+                if (activity == attachActivity?.get()) {
+                    removeLogView()
+                }
             }
         })
         val packageManager = context.packageManager as PackageManager
@@ -105,6 +115,7 @@ object SLog {
         }
         return this
     }
+
 
     fun attachLifecycle(lifecycleOwner: LifecycleOwner) {
         lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -125,10 +136,15 @@ object SLog {
         }
     }
 
+    fun addRunnable(runnable: Runnable) {
+        threadPool.execute(runnable)
+    }
+
     /**
      * attachActivity  addAttachLogView  removeLogView配合使用
      */
     fun attachActivity(activity: Activity) {
+        attachActivity = WeakReference(activity)
         mWindowManager = mContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         requestWindowPermission(activity)
     }
@@ -137,13 +153,14 @@ object SLog {
         addLogView(activity)
     }
 
-    fun removeLogView() {
+    private fun removeLogView() {
         mWindowManager?.removeView(logViewArray[0])
         logViewArray.remove(0)
     }
 
-    fun saveLogFile(isSave: Boolean) {
+    fun saveLogFile(isSave: Boolean): SLog {
         logSaveLocal = isSave
+        return this
     }
 
     fun getApplicationContext(): Application {
@@ -163,70 +180,11 @@ object SLog {
         return activityList.last()
     }
 
-    fun logD(message: String) {
-        Log.d("$LOG_TAG->", message)
-        if (!(this::mContext.isLateinit)) {
-            throw Exception("please initLog first")
-        }
-        if (logSaveLocal) {
-            GlobalScope.launch {
-                withContext(Dispatchers.IO) {
-                    try {
-                        val file =
-                            File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
-                        if (!file.exists()) {
-                            file.createNewFile()
-                        }
-                        file.appendText(
-                            dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
-                            Charset.defaultCharset()
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        }
-    }
-
-    fun logD(exception: Exception) {
-        if (!(this::mContext.isLateinit)) {
-            throw Exception("please initLog first")
-        }
-        val sw = StringWriter()
-        val pw = PrintWriter(sw)
-        exception.printStackTrace(pw)
-        val message = sw.toString()
+    fun slogD(message: String) {
         Log.d("$LOG_TAG->", message)
         if (logSaveLocal) {
-            GlobalScope.launch {
-                withContext(Dispatchers.IO) {
-                    try {
-                        val file =
-                            File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
-                        if (!file.exists()) {
-                            file.createNewFile()
-                        }
-                        file.appendText(
-                            dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
-                            Charset.defaultCharset()
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        }
-    }
-
-    fun logE(message: String) {
-        Log.e("$LOG_TAG->", message)
-        if (!(this::mContext.isLateinit)) {
-            throw Exception("please initLog first")
-        }
-        if (logSaveLocal) {
-            GlobalScope.launch {
-                withContext(Dispatchers.IO) {
+            threadPool.execute {
+                try {
                     val file =
                         File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
                     if (!file.exists()) {
@@ -236,12 +194,66 @@ object SLog {
                         dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
                         Charset.defaultCharset()
                     )
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
     }
 
-    fun logE(throwable: Throwable) {
+    fun slogD(exception: Exception) {
+        if (!(this::mContext.isLateinit)) {
+            throw Exception("please initLog first")
+        }
+        val sw = StringWriter()
+        val pw = PrintWriter(sw)
+        exception.printStackTrace(pw)
+        val message = sw.toString()
+        Log.d("$LOG_TAG->", message)
+        if (logSaveLocal) {
+            threadPool.execute {
+                try {
+                    val file =
+                        File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
+                    if (!file.exists()) {
+                        file.createNewFile()
+                    }
+                    file.appendText(
+                        dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
+                        Charset.defaultCharset()
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    fun slogE(message: String) {
+        Log.e("$LOG_TAG->", message)
+        if (!(this::mContext.isLateinit)) {
+            throw Exception("please initLog first")
+        }
+        if (logSaveLocal) {
+            threadPool.execute {
+                try {
+                    val file =
+                        File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
+                    if (!file.exists()) {
+                        file.createNewFile()
+                    }
+                    file.appendText(
+                        dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
+                        Charset.defaultCharset()
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    fun slogE(throwable: Throwable) {
         if (!(this::mContext.isLateinit)) {
             throw Exception("please initLog first")
         }
@@ -252,40 +264,36 @@ object SLog {
         val message = buffer.toString()
         Log.e("$LOG_TAG->", message)
         if (logSaveLocal) {
-            GlobalScope.launch {
-                withContext(Dispatchers.IO) {
-                    val file =
-                        File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
-                    if (!file.exists()) {
-                        file.createNewFile()
-                    }
-                    file.appendText(
-                        dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
-                        Charset.defaultCharset()
-                    )
+            threadPool.execute {
+                val file =
+                    File(mContext.externalCacheDir?.absolutePath, "${LOG_TAG}_log.txt")
+                if (!file.exists()) {
+                    file.createNewFile()
                 }
+                file.appendText(
+                    dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
+                    Charset.defaultCharset()
+                )
             }
         }
     }
 
-    fun logI(message: String) {
+    fun slogI(message: String) {
         Log.i("$LOG_TAG->", message)
         if (!(this::mContext.isLateinit)) {
             throw Exception("please initLog first")
         }
         if (logSaveLocal) {
-            GlobalScope.launch {
-                withContext(Dispatchers.IO) {
-                    val file =
-                        File(mContext.externalCacheDir?.absolutePath, "$LOG_TAG.txt")
-                    if (!file.exists()) {
-                        file.createNewFile()
-                    }
-                    file.appendText(
-                        dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
-                        Charset.defaultCharset()
-                    )
+            threadPool.execute {
+                val file =
+                    File(mContext.externalCacheDir?.absolutePath, "$LOG_TAG.txt")
+                if (!file.exists()) {
+                    file.createNewFile()
                 }
+                file.appendText(
+                    dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
+                    Charset.defaultCharset()
+                )
             }
         }
     }
@@ -321,15 +329,17 @@ object SLog {
                             manager.beginTransaction().add(fragment, ActivityResultFragment.NAME)
                                 .commitNowAllowingStateLoss()
                         }
-                        fragment.callback = { requestCode, resultCode, data ->
-                            val success =
-                                resultCode == Activity.RESULT_OK && requestCode == ActivityResultFragment.REQUEST_CODE
+                        fragment.callback = { requestCode, _, _ ->
+                            val success = requestCode == ActivityResultFragment.REQUEST_CODE
                             if (success) {
                                 addLogView(activity)
                             }
                         }
                         try {
-                            fragment.startActivityForResult(intent, ActivityResultFragment.REQUEST_CODE)
+                            fragment.startActivityForResult(
+                                intent,
+                                ActivityResultFragment.REQUEST_CODE
+                            )
                         } catch (e: Exception) {
                             e.printStackTrace()
                             fragment.callback = null
@@ -349,6 +359,14 @@ object SLog {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun addLogView(activity: Activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            !Settings.canDrawOverlays(mContext)
+        ) {
+            return
+        }
+        if (logViewArray.size() > 0) {
+            return
+        }
         //创建窗口布局参数
         val mParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,

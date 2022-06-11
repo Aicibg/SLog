@@ -19,7 +19,7 @@ class MainActivity : AppCompatActivity() {
         SLog.attachActivity(this)
 
         findViewById<Button>(R.id.buttonView).setOnClickListener {
-            SLog.logD("startActivity  ScrollingActivity")
+            SLog.slogD("startActivity  ScrollingActivity")
             startActivity(Intent(this, ScrollingActivity::class.java))
         }
 
@@ -45,9 +45,4 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-    override fun onDestroy() {
-        super.onDestroy()
-        SLog.removeLogView()
-    }
 }

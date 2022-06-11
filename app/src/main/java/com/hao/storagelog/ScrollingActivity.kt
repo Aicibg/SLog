@@ -24,7 +24,7 @@ class ScrollingActivity : AppCompatActivity() {
         binding.fab.setOnClickListener { view ->
             Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
                 .setAction("Action", null).show()
-            SLog.logD("startActivity  SettingsActivity")
+            SLog.slogD("startActivity  SettingsActivity")
             startActivity(Intent(this, SettingsActivity::class.java))
         }
     }

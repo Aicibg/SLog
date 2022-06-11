@@ -3,10 +3,6 @@ package com.hao.loglib
 import android.app.Application
 import android.content.Context
 import android.os.Process
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.PrintWriter
@@ -26,25 +22,23 @@ class CatchException : Thread.UncaughtExceptionHandler {
     override fun uncaughtException(t: Thread, e: Throwable) {
         try {
             if (SLog.logSaveLocal) {
-                GlobalScope.launch {
-                    withContext(Dispatchers.IO) {
-                        val file =
-                            File(
-                                SLog.getApplicationContext().cacheDir.absolutePath,
-                                "${SLog.LOG_TAG}_log.txt"
-                            )
-                        if (!file.exists()) {
-                            file.createNewFile()
-                        }
-                        val sw = StringWriter()
-                        val pw = PrintWriter(sw)
-                        e.printStackTrace(pw)
-                        val message = sw.toString()
-                        file.appendText(
-                            SLog.dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
-                            Charset.defaultCharset()
+                SLog.addRunnable {
+                    val file =
+                        File(
+                            SLog.getApplicationContext().cacheDir.absolutePath,
+                            "${SLog.LOG_TAG}_log.txt"
                         )
+                    if (!file.exists()) {
+                        file.createNewFile()
                     }
+                    val sw = StringWriter()
+                    val pw = PrintWriter(sw)
+                    e.printStackTrace(pw)
+                    val message = sw.toString()
+                    file.appendText(
+                        SLog.dateFormat.format(System.currentTimeMillis()) + " " + message + "\r\n",
+                        Charset.defaultCharset()
+                    )
                 }
             }
         } catch (e1: FileNotFoundException) {

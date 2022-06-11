@@ -9,7 +9,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ShareCompat
 import androidx.core.content.FileProvider
 
 class SLogDialog {
@@ -88,7 +87,7 @@ class SLogDialog {
                 LogDetailsDialog.Instance.show(it.context)
             }
             R.id.buttonShare -> {
-                SLog.logD(" SLog.getLogFile()=${SLog.getLogFile()}")
+                SLog.slogD(" SLog.getLogFile()=${SLog.getLogFile()}")
                 val share = Intent(Intent.ACTION_SEND)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     val contentUri = FileProvider.getUriForFile(
@@ -109,7 +108,7 @@ class SLogDialog {
                 SLog.clearLog()
             }
         }
-       hide()
+        hide()
     }
 
 }
