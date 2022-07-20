@@ -91,7 +91,8 @@ class SLogDialog {
                 val share = Intent(Intent.ACTION_SEND)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     val contentUri = FileProvider.getUriForFile(
-                        it.context, "com.hao.loglib.fileprovider", SLog.getLogFile()
+                        it.context, it.context.applicationInfo.packageName+
+                                ".loglib.fileprovider", SLog.getLogFile()
                     )
                     share.putExtra(Intent.EXTRA_STREAM, contentUri)
                     share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

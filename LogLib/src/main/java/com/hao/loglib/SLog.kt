@@ -82,7 +82,7 @@ object SLog {
                 if (activityList.contains(activity)) {
                     activityList.remove(activity)
                 }
-                if (activityList.isEmpty()) {
+                if (activityList.isEmpty() && logViewArray.size()>0) {
                     logViewArray[0].visibility = View.GONE
                 }
             }
@@ -154,8 +154,10 @@ object SLog {
     }
 
     private fun removeLogView() {
-        mWindowManager?.removeView(logViewArray[0])
-        logViewArray.remove(0)
+        if (logViewArray.size()>0){
+            mWindowManager?.removeView(logViewArray[0])
+            logViewArray.remove(0)
+        }
     }
 
     fun saveLogFile(isSave: Boolean): SLog {
@@ -308,18 +310,18 @@ object SLog {
                     Uri.parse("package:${activity.packageName}")
                 )
                 when (activity) {
-                    is AppCompatActivity -> {
-                        activity.registerForActivityResult(
-                            ActivityResultContracts.StartActivityForResult()
-                        ) {
-                            val data = it.data
-                            val resultCode = it.resultCode
-                            println("resultCode===$resultCode")
-                            if (resultCode == 0) {
-                                addLogView(activity)
-                            }
-                        }.launch(intent)
-                    }
+//                    is AppCompatActivity -> {
+//                        activity.registerForActivityResult(
+//                            ActivityResultContracts.StartActivityForResult()
+//                        ) {
+//                            val data = it.data
+//                            val resultCode = it.resultCode
+//                            println("resultCode===$resultCode")
+//                            if (resultCode == 0) {
+//                                addLogView(activity)
+//                            }
+//                        }.launch(intent)
+//                    }
                     is FragmentActivity -> {
                         val manager = activity.supportFragmentManager
                         var fragment =

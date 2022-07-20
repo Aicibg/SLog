@@ -2,11 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hao.loglib">
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application >
 
         <provider
             android:name=".LogFileProvider"
-            android:authorities="com.hao.loglib.fileprovider"
+            android:authorities="${applicationId}.loglib.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <!--元数据-->
